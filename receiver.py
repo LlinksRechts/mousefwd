@@ -3,22 +3,24 @@ import gi
 gi.require_version('Gtk', '3.0')
 gi.require_version('Gdk', '3.0')
 
-from gi.repository import Gdk, Gtk, GObject
+from gi.repository import Gdk, Gtk, GLib
 from cairo import Region, RectangleInt
 from Xlib.ext.xtest import fake_input
 from Xlib import display, X
 import threading
 
-Gdk.threads_init()
-
 s = Gdk.Screen.get_default()
-x, y = s.get_width() // 2, s.get_height() // 2
 d = display.Display()
 xd = Gdk.Display.get_default()
+geom = xd.get_monitor(0).get_geometry()
+x, y = geom.width // 2, geom.height // 2
 pointer = xd.get_default_seat().get_pointer()
 cur = None
 
 def move_pointer_to(dx, dy):
+    GLib.idle_add(lambda: _move_pointer_to(dx, dy))
+
+def _move_pointer_to(dx, dy):
     global x, y
     x += dx
     y += dy
@@ -31,10 +33,16 @@ def move_pointer_to(dx, dy):
         cur.move(x+1, y+1)
 
 def click_button(btn):
+    GLib.idle_add(lambda: _click_button(btn))
+
+def _click_button(btn):
     fake_input(d, X.ButtonPress, btn, X.CurrentTime, X.NONE, x, 5)
     d.sync()
 
 def release_button(btn):
+    GLib.idle_add(lambda: _release_button(btn))
+
+def _release_button(btn):
     fake_input(d, X.ButtonRelease, btn, X.CurrentTime)
     d.sync()
 
@@ -72,16 +80,12 @@ def main():
     Gtk.main()
 
 def main_thread():
-    # fix for 'Fatal IO error 2 (No such file or directory) on X server :0.'
-    # start()
-    # stop()
     while True:
         try:
             inp = input()
         except EOFError:
             break
         cmd, *args = inp.split(' ')
-        Gdk.threads_enter()
         if cmd == 'move':
             dx, dy = [int(x) for x in args]
             move_pointer_to(dx, dy)
@@ -93,7 +97,6 @@ def main_thread():
             start()
         elif cmd == 'stop':
             stop()
-        Gdk.threads_leave()
     Gtk.main_quit()
 
 if __name__ == '__main__':
