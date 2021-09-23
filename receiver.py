@@ -58,7 +58,10 @@ def cursor():
     global cur
     win = Gtk.Window(type=Gtk.WindowType.POPUP)
     im = Gtk.Image.new_from_file('cursor.png')
+    Gtk.Widget.set_opacity(win, 0)
+    win.set_visual(win.get_screen().get_rgba_visual())
     win.add(im)
+    Gtk.Widget.set_opacity(win, 1)
     win.set_decorated(False)
     win.set_modal(True)
     win.set_keep_above(True)
