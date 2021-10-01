@@ -29,17 +29,19 @@ class MoveThread(threading.Thread):
             self.action()
 
 class Sender:
-    def __init__(self, connection=sys.stdout, cursor=False, hotkey='grave', modifiers=['C']):
+    def __init__(self, connection=sys.stdout, cursor=False, hotkey='grave', modifiers=['C'], sensitivity=1):
         self.connection = connection
         self.cursor = cursor
         self.hotkey = hotkey
         self.modifiers = modifiers
+        self.sensitivity = sensitivity
 
         self.xd = Gdk.Display.get_default()
         self.screen = Gdk.Screen.get_default()
         self.pointer = self.xd.get_default_seat().get_pointer()
         self.rel, self.running = False, False
         self.dx, self.dy = 0, 0
+        self.leftoverX, self.leftoverY = 0.0, 0.0
 
         self.d = display.Display()
         self.rt = self.d.screen().root
@@ -94,8 +96,15 @@ class Sender:
     def sendMove(self):
         if (self.dx != 0 or self.dy != 0) and self.running:
             self.mouseLock.acquire()
-            self.printconn("move", self.dx, self.dy)
+            self.dx *= self.sensitivity
+            self.dy *= self.sensitivity
+            self.dx += self.leftoverX
+            self.dy += self.leftoverY
+            moveX = int(self.dx)
+            moveY = int(self.dy)
+            self.printconn("move", moveX, moveY)
             self.connection.flush()
+            self.leftoverX, self.leftoverY = self.dx - moveX, self.dy - moveY
             self.dx, self.dy = 0, 0
             self.mouseLock.release()
 
