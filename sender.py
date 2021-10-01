@@ -6,91 +6,99 @@ gi.require_version('Gdk', '3.0')
 from gi.repository import Gdk, Gtk, GLib
 from Xlib import display, X
 from Xlib.keysymdef import latin1
+from Xlib.protocol.event import ClientMessage, KeyPress, DestroyNotify
 import threading
-import signal
 import sys
 
-def evt(_, __, handle=None):
-    global pos, x, y, rel, dx, dy, count, running
-    handle = handle or rt.display
-    ev = handle.next_event()
-    if rel and ev.type != X.KeyPress:
-        print("stop")
-        running = False
-        d.ungrab_pointer(X.CurrentTime)
-        rel = False
-        sys.stdout.flush()
-        return True
-    if ev.type == X.MotionNotify:
-        dx += (ev.root_x - x) // 1
-        dy += (ev.root_y - y) // 1
-        if ev.root_x != x or ev.root_y != y:
-            pointer.warp(screen, x, y)
-            # -> flush
-            xd.sync()
-        # if dx != 0 or dy != 0:
-        #     print("move", dx, dy)
-        #     if ev.root_x != x or ev.root_y != y:
-        #         pointer.warp(screen, x, y)
-        #         # -> flush
-        #         xd.sync()
-        #     dx, dy = 0, 0
-    elif ev.type == X.ButtonPress:
-        print("press", ev.detail)
-    elif ev.type == X.ButtonRelease:
-        print("release", ev.detail)
-    elif ev.type == X.KeyPress:
-        if rel:
-            rel = False
-            return True
-        print("start")
-        running = True
-        pos = pointer.get_position()
-        x, y = pos.x, pos.y
-        rt.grab_pointer(False, X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask, X.GrabModeAsync, X.GrabModeAsync, 0, 0, X.CurrentTime)
-    elif ev.type == X.KeyRelease:
-        rel = True
-        # print("stop")
-        # d.ungrab_pointer(X.CurrentTime)
-    sys.stdout.flush()
-    return True
 
 class MoveThread(threading.Thread):
-    def __init__(self, event=threading.Event()):
+    def __init__(self, action, event=threading.Event()):
+        self.action = action
         threading.Thread.__init__(self)
         self.stopped = event
 
     def run(self):
-        global dx, dy, running
         while not self.stopped.wait(0.01):
-            if (dx != 0 or dy != 0) and running:
-                print("move", dx, dy)
-                sys.stdout.flush()
-                dx, dy = 0, 0
+            self.action()
 
-xd = Gdk.Display.get_default()
-screen = Gdk.Screen.get_default()
-pointer = xd.get_default_seat().get_pointer()
-rel, running = False, False
-dx, dy = 0, 0
-count = 0
+class Sender:
+    def __init__(self, connection=sys.stdout):
+        self.connection = connection
 
-d = display.Display()
-rt = d.screen().root
+        self.xd = Gdk.Display.get_default()
+        self.screen = Gdk.Screen.get_default()
+        self.pointer = self.xd.get_default_seat().get_pointer()
+        self.rel, self.running = False, False
+        self.dx, self.dy = 0, 0
 
-def main():
-    rt.change_attributes(event_mask=X.KeyPressMask)
-    rt.grab_key(d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask, 1, X.GrabModeAsync, X.GrabModeAsync)
-    rt.grab_key(d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask | X.Mod2Mask, 1, X.GrabModeAsync, X.GrabModeAsync)
+        self.d = display.Display()
+        self.rt = self.d.screen().root
 
-    signal.signal(signal.SIGINT, signal.SIG_DFL)
-    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+        self.active = True
+        self.stopped = threading.Event()
 
-    mt = MoveThread()
-    mt.start()
+    def printconn(self, *args):
+        self.connection.write(' '.join((str(x) for x in args)).encode('UTF-8'))
+        self.connection.write(b'\n')
 
-    while True:
-        evt(0, 0)
+    def evt(self):
+        while not self.rt.display.pending_events():
+            if self.stopped.wait(0.001): # TODO find a way not to busy wait
+                return False
+        ev = self.rt.display.next_event()
+        if self.rel and ev.type != X.KeyPress:
+            self.printconn("stop")
+            self.running = False
+            self.d.ungrab_pointer(X.CurrentTime)
+            self.rel = False
+            self.connection.flush()
+            return True
+        if ev.type == X.MotionNotify:
+            self.dx += (ev.root_x - self.x) // 1
+            self.dy += (ev.root_y - self.y) // 1
+            if ev.root_x != self.x or ev.root_y != self.y:
+                self.pointer.warp(self.screen, self.x, self.y)
+                # -> flush
+                self.xd.sync()
+        elif ev.type == X.ButtonPress:
+            self.printconn("press", ev.detail)
+        elif ev.type == X.ButtonRelease:
+            self.printconn("release", ev.detail)
+        elif ev.type == X.KeyPress:
+            if self.rel:
+                self.rel = False
+                return True
+            self.printconn("start")
+            self.running = True
+            self.pos = self.pointer.get_position()
+            self.x, self.y = self.pos.x, self.pos.y
+            self.rt.grab_pointer(False, X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask, X.GrabModeAsync, X.GrabModeAsync, 0, 0, X.CurrentTime)
+        elif ev.type == X.KeyRelease:
+            self.rel = True
+        self.connection.flush()
+        return True
+
+    def sendMove(self):
+        if (self.dx != 0 or self.dy != 0) and self.running:
+            self.printconn("move", self.dx, self.dy)
+            self.connection.flush()
+            self.dx, self.dy = 0, 0
+
+    def run(self):
+        self.rt.change_attributes(event_mask=X.KeyPressMask)
+        self.rt.grab_key(self.d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask, 1, X.GrabModeAsync, X.GrabModeAsync)
+        self.rt.grab_key(self.d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask | X.Mod2Mask, 1, X.GrabModeAsync, X.GrabModeAsync)
+
+        self.mt = MoveThread(self.sendMove, self.stopped)
+        self.mt.start()
+
+        while self.active:
+            self.evt()
+
+    def exit(self):
+        self.active = False
+        self.stopped.set()
+        self.d.send_event(X.NONE, ClientMessage(data=(8, b'\0'*20), window=self.rt, client_type=X.NONE))
 
 if __name__ == '__main__':
-    main()
+    Sender().run()
