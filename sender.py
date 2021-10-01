@@ -6,7 +6,6 @@ gi.require_version('Gdk', '3.0')
 from gi.repository import Gdk, Gtk, GLib
 from Xlib import display, X
 from Xlib.keysymdef import latin1
-from Xlib.protocol.event import ClientMessage, KeyPress, DestroyNotify
 import threading
 import sys
 
@@ -22,8 +21,9 @@ class MoveThread(threading.Thread):
             self.action()
 
 class Sender:
-    def __init__(self, connection=sys.stdout):
+    def __init__(self, connection=sys.stdout, cursor=False):
         self.connection = connection
+        self.cursor = cursor
 
         self.xd = Gdk.Display.get_default()
         self.screen = Gdk.Screen.get_default()
@@ -89,6 +89,9 @@ class Sender:
         self.rt.grab_key(self.d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask, 1, X.GrabModeAsync, X.GrabModeAsync)
         self.rt.grab_key(self.d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask | X.Mod2Mask, 1, X.GrabModeAsync, X.GrabModeAsync)
 
+        if self.cursor:
+            self.printconn("cursor on")
+
         self.mt = MoveThread(self.sendMove, self.stopped)
         self.mt.start()
 
@@ -96,9 +99,9 @@ class Sender:
             self.evt()
 
     def exit(self):
+        self.printconn("quit")
         self.active = False
         self.stopped.set()
-        self.d.send_event(X.NONE, ClientMessage(data=(8, b'\0'*20), window=self.rt, client_type=X.NONE))
 
 if __name__ == '__main__':
     Sender().run()

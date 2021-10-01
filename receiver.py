@@ -16,6 +16,7 @@ geom = xd.get_monitor(0).get_geometry()
 x, y = geom.width // 2, geom.height // 2
 pointer = xd.get_default_seat().get_pointer()
 cur = None
+useCursor = False
 
 def move_pointer_to(dx, dy):
     GLib.idle_add(lambda: _move_pointer_to(dx, dy))
@@ -47,12 +48,12 @@ def _release_button(btn):
     d.sync()
 
 def start():
-    if cur is not None:
-        cur.show_all()
+    if cur is not None and useCursor:
+        GLib.idle_add(cur.show_all)
 
 def stop():
-    if cur is not None:
-        cur.hide()
+    if cur is not None and useCursor:
+        GLib.idle_add(cur.hide)
 
 def cursor():
     global cur
@@ -73,8 +74,11 @@ def cursor():
     cur = win
     return cur
 
+def enableCursor(isEnabled):
+    global useCursor
+    useCursor = isEnabled
+
 def main():
-    # TODO cursor flag
     cursor()
     start()
     stop()
@@ -100,6 +104,10 @@ def main_thread():
             start()
         elif cmd == 'stop':
             stop()
+        elif cmd == 'cursor':
+            enableCursor(args[0] == 'on')
+        elif cmd == 'quit':
+            break
     Gtk.main_quit()
 
 if __name__ == '__main__':
