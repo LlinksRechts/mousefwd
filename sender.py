@@ -6,9 +6,17 @@ gi.require_version('Gdk', '3.0')
 from gi.repository import Gdk, Gtk, GLib
 from Xlib import display, X
 from Xlib.keysymdef import latin1
+from functools import reduce
 import threading
 import sys
 
+
+keyModifiers = {
+    'C': X.ControlMask, # Control
+    'S': X.ShiftMask, # Shift
+    'A': X.Mod1Mask, # Alt
+    'M': X.Mod4Mask, # Meta
+}
 
 class MoveThread(threading.Thread):
     def __init__(self, action, event=threading.Event()):
@@ -21,9 +29,11 @@ class MoveThread(threading.Thread):
             self.action()
 
 class Sender:
-    def __init__(self, connection=sys.stdout, cursor=False):
+    def __init__(self, connection=sys.stdout, cursor=False, hotkey='grave', modifiers=['C']):
         self.connection = connection
         self.cursor = cursor
+        self.hotkey = hotkey
+        self.modifiers = modifiers
 
         self.xd = Gdk.Display.get_default()
         self.screen = Gdk.Screen.get_default()
@@ -90,9 +100,20 @@ class Sender:
             self.mouseLock.release()
 
     def run(self):
+        modifiers = [keyModifiers.get(mod, None) for mod in self.modifiers]
+        if None in modifiers:
+            print(f"Unknown modifier {self.modifiers[modifiers.index(None)]}")
+            self.exit()
+            return
+        if getattr(latin1, f'XK_{self.hotkey}', None) is None:
+            print(f"Unknown hotkey {self.hotkey}")
+            self.exit()
+            return
+        hotkey = self.d.keysym_to_keycode(getattr(latin1, f'XK_{self.hotkey}'))
+        xModifiers = reduce(lambda a, b: a | b, modifiers)
         self.rt.change_attributes(event_mask=X.KeyPressMask)
-        self.rt.grab_key(self.d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask, 1, X.GrabModeAsync, X.GrabModeAsync)
-        self.rt.grab_key(self.d.keysym_to_keycode(getattr(latin1, 'XK_grave')), X.ControlMask | X.Mod2Mask, 1, X.GrabModeAsync, X.GrabModeAsync)
+        self.rt.grab_key(hotkey, xModifiers, 1, X.GrabModeAsync, X.GrabModeAsync)
+        self.rt.grab_key(hotkey, xModifiers | X.Mod2Mask, 1, X.GrabModeAsync, X.GrabModeAsync)
 
         if self.cursor:
             self.printconn("cursor on")
