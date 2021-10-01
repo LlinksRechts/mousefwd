@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+import sys
 import signal
 import argparse
 import subprocess
@@ -26,7 +28,7 @@ def parseHotkey(hotkeyString):
     split = hotkeyString.split('-')
     return split[-1], split[:-1]
 
-if subprocess.run(['scp', 'receiver.py', 'cursor.png', f'{args.host}:{args.receiver_dir}/']).returncode == 0:
+if subprocess.run(['scp', f'{os.path.dirname(sys.argv[0])}/receiver.py', f'{os.path.dirname(sys.argv[0])}/cursor.png', f'{args.host}:{args.receiver_dir}/']).returncode == 0:
     connection = subprocess.Popen(['ssh', args.host, f'cd {args.receiver_dir}; DISPLAY={args.display} python3 ./receiver.py'], stdin=subprocess.PIPE)
     signal.signal(signal.SIGINT, stopAll)
     signal.signal(signal.SIGTERM, stopAll)
