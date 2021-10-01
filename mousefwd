@@ -1,7 +1,0 @@
-#!/bin/bash
-HOST=$1
-PYTHON=$2
-[[ -z "$PYTHON" ]] && PYTHON="/usr/bin/env python3"
-
-scp $(dirname "$0")/{receiver.py,cursor.png} $HOST:/tmp/
-$PYTHON $(dirname "$0")/sender.py |ssh $HOST 'cd /tmp; DISPLAY=:0 python3 ./receiver.py'
