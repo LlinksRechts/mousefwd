@@ -36,6 +36,7 @@ class Sender:
 
         self.active = True
         self.stopped = threading.Event()
+        self.mouseLock = threading.Lock()
 
     def printconn(self, *args):
         self.connection.write(' '.join((str(x) for x in args)).encode('UTF-8'))
@@ -54,12 +55,14 @@ class Sender:
             self.connection.flush()
             return True
         if ev.type == X.MotionNotify:
+            self.mouseLock.acquire()
             self.dx += (ev.root_x - self.x) // 1
             self.dy += (ev.root_y - self.y) // 1
             if ev.root_x != self.x or ev.root_y != self.y:
                 self.pointer.warp(self.screen, self.x, self.y)
                 # -> flush
                 self.xd.sync()
+            self.mouseLock.release()
         elif ev.type == X.ButtonPress:
             self.printconn("press", ev.detail)
         elif ev.type == X.ButtonRelease:
@@ -80,9 +83,11 @@ class Sender:
 
     def sendMove(self):
         if (self.dx != 0 or self.dy != 0) and self.running:
+            self.mouseLock.acquire()
             self.printconn("move", self.dx, self.dy)
             self.connection.flush()
             self.dx, self.dy = 0, 0
+            self.mouseLock.release()
 
     def run(self):
         self.rt.change_attributes(event_mask=X.KeyPressMask)
