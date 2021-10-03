@@ -4,9 +4,9 @@ over SSH while a hotkey is held. Currently, this is only tested on systems
 running the X display manager.
 
 ## Installation
-Mousefwd needs gobject-introspection, cairo, and xlib. These can usually be
-installed via the packages `python3-gi`, `python3-gi-cairo`, and
-`python3-xlib` in your package manager.
+Mousefwd needs gobject-introspection, cairo, and xlib on both the sender and
+the receiver. These can usually be installed via the packages `python3-gi`,
+`python3-gi-cairo`, and `python3-xlib` in your package manager.
 
 ## Usage
 The application is passed an SSH host to forward inputs to, for example
