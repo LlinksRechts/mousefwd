@@ -60,6 +60,10 @@ class Sender:
                 return False
         ev = self.rt.display.next_event()
         if self.rel and ev.type != X.KeyPress:
+            self.x = self.pos.x
+            self.y = self.pos.y
+            self.pointer.warp(self.screen, self.x, self.y)
+            self.xd.sync()
             self.printconn("stop")
             self.running = False
             self.d.ungrab_pointer(X.CurrentTime)
@@ -86,7 +90,9 @@ class Sender:
             self.printconn("start")
             self.running = True
             self.pos = self.pointer.get_position()
-            self.x, self.y = self.pos.x, self.pos.y
+            self.x, self.y = self.screen.width() // 2, self.screen.height() // 2
+            self.pointer.warp(self.screen, self.x, self.y)
+            self.xd.sync()
             self.rt.grab_pointer(False, X.ButtonPressMask | X.ButtonReleaseMask | X.PointerMotionMask, X.GrabModeAsync, X.GrabModeAsync, 0, 0, X.CurrentTime)
         elif ev.type == X.KeyRelease:
             self.rel = True
